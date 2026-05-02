@@ -32,8 +32,17 @@ def set_global_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
-def evaluate_tracking(roundIdx, tracking_ids, proxy_weights, proxy_trains, proxy_finetunes, test_q, args):
+def evaluate_tracking(roundIdx, tracking_ids, proxy_weights, proxy_trains, proxy_finetunes, test_q, args, server_weight):
     test_count = 0
+
+    server_path = save_ipc_state_dict(server_weight, args, f"test_r{roundIdx}_server")
+    test_q.put({
+        'round': roundIdx,
+        'weight': server_path,
+        'worker_type': 'server',
+        'cleanup_weight': True
+    })
+    test_count += 1
 
     for node_id in tracking_ids:
         if node_id not in proxy_weights:
@@ -182,7 +191,8 @@ if __name__ == "__main__":
 
         time.sleep(2.0)
 
-        if tracking_selected_ids:
+        should_evaluate_round = bool(tracking_selected_ids)
+        if should_evaluate_round:
             time.sleep(1.0)
             test_count += evaluate_tracking(
                 roundIdx=roundIdx,
@@ -191,7 +201,8 @@ if __name__ == "__main__":
                 proxy_trains=tracking_proxy_trains,
                 proxy_finetunes=tracking_finetunes,
                 test_q=test_q,
-                args=args
+                args=args,
+                server_weight=clean_weight
             )
 
         server.avg_parameters(roundIdx)

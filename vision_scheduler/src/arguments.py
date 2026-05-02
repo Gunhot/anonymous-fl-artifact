@@ -1,8 +1,25 @@
 import argparse
 import os
+import subprocess
 
 
 VISION_SCHEDULER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+ARTIFACT_DIR = os.path.abspath(os.path.join(VISION_SCHEDULER_DIR, ".."))
+
+
+def current_branch_suffix():
+    try:
+        branch = subprocess.check_output(
+            ["git", "-C", ARTIFACT_DIR, "branch", "--show-current"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:
+        branch = ""
+
+    if branch in {"main", "ablation"}:
+        return branch
+    return ""
 
 
 def generate_log_name(args):
@@ -20,6 +37,7 @@ def generate_log_name(args):
         f"p1{args.p1}p2{args.p2}OM{args.omega}SD{args.seed}"
         f"{'QF1' if args.qsn_fixed_mask else ''}"
         f"NU{args.noise_update}"
+        f"{current_branch_suffix()}"
     )
     log_path = os.path.join(VISION_SCHEDULER_DIR, "save", args.dataset, log_name)
     return log_path

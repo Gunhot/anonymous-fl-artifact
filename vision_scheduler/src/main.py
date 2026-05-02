@@ -34,8 +34,15 @@ def cpu_clone_sd(sd):
     }
 
 
-def evaluate_tracking(roundIdx, tracking_ids, proxy_weights, proxy_trains, proxy_finetunes, test_q):
+def evaluate_tracking(roundIdx, tracking_ids, proxy_weights, proxy_trains, proxy_finetunes, test_q, server_weight):
     test_count = 0
+
+    test_q.put({
+        'round': roundIdx,
+        'weight': server_weight,
+        'worker_type': 'server'
+    })
+    test_count += 1
 
     for node_id in tracking_ids:
         if node_id not in proxy_weights:
@@ -175,7 +182,8 @@ if __name__ == "__main__":
 
         time.sleep(2.0)
 
-        if tracking_selected_ids:
+        should_evaluate_round = bool(tracking_selected_ids)
+        if should_evaluate_round:
             time.sleep(1.0)
             test_count += evaluate_tracking(
                 roundIdx=roundIdx,
@@ -183,7 +191,8 @@ if __name__ == "__main__":
                 proxy_weights=proxy_weights,
                 proxy_trains=tracking_proxy_trains,
                 proxy_finetunes=tracking_finetunes,
-                test_q=test_q
+                test_q=test_q,
+                server_weight=clean_weight
             )
 
         server.avg_parameters(roundIdx)
