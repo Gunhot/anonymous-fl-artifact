@@ -2,6 +2,9 @@ import argparse
 import os
 
 
+VISION_SCHEDULER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
 def generate_log_name(args):
     log_name = (
         # 1. System Configuration
@@ -18,7 +21,7 @@ def generate_log_name(args):
         f"{'QF1' if args.qsn_fixed_mask else ''}"
         f"NU{args.noise_update}"
     )
-    log_path = os.path.join("..", "save", args.dataset, log_name)
+    log_path = os.path.join(VISION_SCHEDULER_DIR, "save", args.dataset, log_name)
     return log_path
 
 def parser():

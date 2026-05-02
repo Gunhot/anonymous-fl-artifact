@@ -82,9 +82,9 @@ def get_dataset(args):
                                   ]
         )
         dir = os.path.join(BASE_DATA_DIR, 'cifar100')
-        train_dataset = datasets.CIFAR100(dir, train=True, download=True,
+        train_dataset = datasets.CIFAR100(dir, train=True, download=False,
                                          transform=apply_transform_train)
-        test_dataset = datasets.CIFAR100(dir, train=False, download=True,
+        test_dataset = datasets.CIFAR100(dir, train=False, download=False,
                                         transform=apply_transform_test)
 
         return train_dataset, test_dataset
