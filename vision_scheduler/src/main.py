@@ -34,81 +34,6 @@ def cpu_clone_sd(sd):
     }
 
 
-def evaluate_final(roundIdx, selected_ids, proxy_weights, proxy_trains, proxy_finetunes, test_q):
-    test_count = 0
-
-    for node_id in selected_ids:
-        test_q.put({
-            'round': roundIdx,
-            'weight': proxy_weights[node_id],
-            'worker_type': f'proxy_{node_id}'
-        })
-        test_count += 1
-
-        train_sd = proxy_trains.get(node_id)
-        if train_sd is not None:
-            test_q.put({
-                'round': roundIdx,
-                'weight': train_sd,
-                'worker_type': f'proxy_train_{node_id}'
-            })
-            test_count += 1
-
-        finetune_sd = proxy_finetunes.get(node_id)
-        if finetune_sd is not None:
-            test_q.put({
-                'round': roundIdx,
-                'weight': finetune_sd,
-                'worker_type': f'proxy_finetune_{node_id}'
-            })
-            test_count += 1
-
-    if len(selected_ids) >= 3:
-        for collusion_idx in range(5):
-            collusion_before_sd = {}
-            collusion_finetune_sd = {}
-            collusion_after_sd = {}
-            collusion_before_ids = random.sample(selected_ids, 3)
-            collusion_finetune_ids = random.sample(selected_ids, 3)
-            collusion_after_ids = random.sample(selected_ids, 3)
-            for key in proxy_weights[collusion_before_ids[0]].keys():
-                before0 = proxy_weights[collusion_before_ids[0]][key]
-                before1 = proxy_weights[collusion_before_ids[1]][key]
-                before2 = proxy_weights[collusion_before_ids[2]][key]
-                collusion_before_sd[key] = ((before0 + before1 + before2) / 3.0).clone()
-
-                finetune0 = proxy_finetunes[collusion_finetune_ids[0]][key]
-                finetune1 = proxy_finetunes[collusion_finetune_ids[1]][key]
-                finetune2 = proxy_finetunes[collusion_finetune_ids[2]][key]
-                collusion_finetune_sd[key] = ((finetune0 + finetune1 + finetune2) / 3.0).clone()
-
-                after0 = proxy_trains[collusion_after_ids[0]][key]
-                after1 = proxy_trains[collusion_after_ids[1]][key]
-                after2 = proxy_trains[collusion_after_ids[2]][key]
-                collusion_after_sd[key] = ((after0 + after1 + after2) / 3.0).clone()
-
-            test_q.put({
-                'round': roundIdx,
-                'weight': collusion_before_sd,
-                'worker_type': f'collusion_before_{collusion_idx}'
-            })
-            test_count += 1
-            test_q.put({
-                'round': roundIdx,
-                'weight': collusion_finetune_sd,
-                'worker_type': f'collusion_finetune_{collusion_idx}'
-            })
-            test_count += 1
-            test_q.put({
-                'round': roundIdx,
-                'weight': collusion_after_sd,
-                'worker_type': f'collusion_after_{collusion_idx}'
-            })
-            test_count += 1
-
-    return test_count
-
-
 def evaluate_tracking(roundIdx, tracking_ids, proxy_weights, proxy_trains, proxy_finetunes, test_q):
     test_count = 0
 
@@ -185,8 +110,6 @@ if __name__ == "__main__":
     if os.path.exists(experiment_dir):
         shutil.rmtree(experiment_dir)
     os.makedirs(experiment_dir)
-    with open(os.path.join(experiment_dir, "server.txt"), "w") as f:
-        pass
 
     lr = args.lr
     local_epoch = args.local_epoch
@@ -202,20 +125,12 @@ if __name__ == "__main__":
         n_trainees = int(len(nodeIDs) * args.fraction)
         selected_ids = random.sample(nodeIDs, n_trainees)
         trainees = [nodes[i] for i in selected_ids]
-        is_final_round = roundIdx == args.round
         tracking_selected_ids = [
             node_id for node_id in tracking_ids
             if node_id in selected_ids
         ]
 
         clean_weight = get_model_sd(server.model)
-        if is_final_round:
-            test_q.put({
-                'round': roundIdx,
-                'weight': clean_weight,
-                'worker_type': 'server'
-            })
-            test_count += 1
 
         centered_noise = None
         if args.DP == 'ours' and roundIdx != 1:
@@ -237,15 +152,13 @@ if __name__ == "__main__":
                 'local_epoch': local_epoch,
                 'weight': proxy_weights[node.nodeID],
                 'round': roundIdx,
-                'finetune': is_final_round or node.nodeID in tracking_selected_ids,
+                'finetune': node.nodeID in tracking_selected_ids,
             })
             train_count += 1
 
         if args.DP == 'ours':
             server.reset_perturbation_direction()
 
-        final_finetunes = {}
-        final_proxy_trains = {}
         tracking_finetunes = {}
         tracking_proxy_trains = {}
         for _ in range(train_count):
@@ -258,14 +171,11 @@ if __name__ == "__main__":
             if node_id in tracking_selected_ids:
                 tracking_finetunes[node_id] = proxy_finetune
                 tracking_proxy_trains[node_id] = proxy_update
-            if is_final_round:
-                final_finetunes[node_id] = proxy_finetune
-                final_proxy_trains[node_id] = proxy_update
             del msg
 
         time.sleep(2.0)
 
-        if not is_final_round and tracking_selected_ids:
+        if tracking_selected_ids:
             time.sleep(1.0)
             test_count += evaluate_tracking(
                 roundIdx=roundIdx,
@@ -273,17 +183,6 @@ if __name__ == "__main__":
                 proxy_weights=proxy_weights,
                 proxy_trains=tracking_proxy_trains,
                 proxy_finetunes=tracking_finetunes,
-                test_q=test_q
-            )
-
-        if is_final_round:
-            time.sleep(1.0)
-            test_count += evaluate_final(
-                roundIdx=roundIdx,
-                selected_ids=selected_ids,
-                proxy_weights=proxy_weights,
-                proxy_trains=final_proxy_trains,
-                proxy_finetunes=final_finetunes,
                 test_q=test_q
             )
 
