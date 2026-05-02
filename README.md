@@ -89,6 +89,7 @@ python e2e_results.py
 ```
 
 The result scripts call the same `generate_log_name()` functions as the run scripts, so save-directory names stay synchronized with the experiment arguments.
+Generated plots are saved as PNG files under each scheduler's `figures/` directory.
 
 ## Ablation Evaluation
 

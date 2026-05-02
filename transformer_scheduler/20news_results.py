@@ -15,6 +15,8 @@ if TRANSFORMER_SRC_DIR not in sys.path:
 from arguments import generate_log_name
 
 base_dir = os.path.join(SCRIPT_DIR, "save")
+figure_dir = os.path.join(SCRIPT_DIR, "figures")
+figure_prefix = "20news"
 
 
 DEFAULT_ARGS = {
@@ -141,6 +143,13 @@ def densify(rounds, accs, max_round):
     return dense_accs
 
 
+def save_figure(fig, compare_idx):
+    os.makedirs(figure_dir, exist_ok=True)
+    output_path = os.path.join(figure_dir, f"{figure_prefix}_{compare_idx:02d}.png")
+    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    print(f"saved figure: {output_path}")
+
+
 def plot_comparison(compare_idx):
     """Plot one comparison entry against the FedAvg entry immediately before it."""
     file_name = file_names[compare_idx]
@@ -260,6 +269,7 @@ def plot_comparison(compare_idx):
     ax.legend(fontsize=13, frameon=False, loc="lower right")
 
     plt.tight_layout()
+    save_figure(fig, compare_idx)
     plt.show()
 
 

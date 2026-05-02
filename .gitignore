@@ -4,6 +4,8 @@
 /save/
 */save/
 **/save/
+*/figures/
+**/figures/
 **/_ipc/
 
 # Python bytecode and caches
