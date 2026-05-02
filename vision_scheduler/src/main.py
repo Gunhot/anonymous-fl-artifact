@@ -34,6 +34,48 @@ def cpu_clone_sd(sd):
     }
 
 
+def evaluate_tracking(roundIdx, tracking_ids, proxy_weights, proxy_trains, proxy_finetunes, test_q, server_weight):
+    test_count = 0
+
+    test_q.put({
+        'round': roundIdx,
+        'weight': server_weight,
+        'worker_type': 'server'
+    })
+    test_count += 1
+
+    for node_id in tracking_ids:
+        if node_id not in proxy_weights:
+            continue
+
+        test_q.put({
+            'round': roundIdx,
+            'weight': proxy_weights[node_id],
+            'worker_type': f'proxy_{node_id}'
+        })
+        test_count += 1
+
+        train_sd = proxy_trains.get(node_id)
+        if train_sd is not None:
+            test_q.put({
+                'round': roundIdx,
+                'weight': train_sd,
+                'worker_type': f'proxy_train_{node_id}'
+            })
+            test_count += 1
+
+        finetune_sd = proxy_finetunes.get(node_id)
+        if finetune_sd is not None:
+            test_q.put({
+                'round': roundIdx,
+                'weight': finetune_sd,
+                'worker_type': f'proxy_finetune_{node_id}'
+            })
+            test_count += 1
+
+    return test_count
+
+
 def evaluate_final(roundIdx, selected_ids, proxy_weights, proxy_trains, proxy_finetunes, test_q):
     test_count = 0
 
@@ -71,6 +113,7 @@ def evaluate_final(roundIdx, selected_ids, proxy_weights, proxy_trains, proxy_fi
             collusion_before_ids = random.sample(selected_ids, 3)
             collusion_finetune_ids = random.sample(selected_ids, 3)
             collusion_after_ids = random.sample(selected_ids, 3)
+
             for key in proxy_weights[collusion_before_ids[0]].keys():
                 before0 = proxy_weights[collusion_before_ids[0]][key]
                 before1 = proxy_weights[collusion_before_ids[1]][key]
@@ -155,6 +198,7 @@ if __name__ == "__main__":
 
     lr = args.lr
     local_epoch = args.local_epoch
+    tracking_ids = [0, 1, 2]
     for roundIdx in range(1, args.round + 1):
         train_count = 0
         test_count = 0
@@ -166,10 +210,23 @@ if __name__ == "__main__":
         n_trainees = int(len(nodeIDs) * args.fraction)
         selected_ids = random.sample(nodeIDs, n_trainees)
         trainees = [nodes[i] for i in selected_ids]
+        tracking_selected_ids = [
+            node_id for node_id in tracking_ids
+            if node_id in selected_ids
+        ]
         is_final_round = roundIdx == args.round
+        is_main_eval = args.eval_mode == 'main'
+        is_ablation_eval = args.eval_mode == 'ablation'
+        if is_main_eval and is_final_round:
+            eval_selected_ids = selected_ids
+        elif is_ablation_eval:
+            eval_selected_ids = tracking_selected_ids
+        else:
+            eval_selected_ids = []
+        eval_selected_id_set = set(eval_selected_ids)
 
         clean_weight = get_model_sd(server.model)
-        if is_final_round:
+        if is_main_eval and is_final_round:
             test_q.put({
                 'round': roundIdx,
                 'weight': clean_weight,
@@ -197,15 +254,15 @@ if __name__ == "__main__":
                 'local_epoch': local_epoch,
                 'weight': proxy_weights[node.nodeID],
                 'round': roundIdx,
-                'finetune': is_final_round,
+                'finetune': node.nodeID in eval_selected_id_set,
             })
             train_count += 1
 
         if args.DP == 'ours':
             server.reset_perturbation_direction()
 
-        final_finetunes = {}
-        final_proxy_trains = {}
+        eval_finetunes = {}
+        eval_proxy_trains = {}
         for _ in range(train_count):
             msg = train_ack_q.get()
             node_id = msg['id']
@@ -213,22 +270,33 @@ if __name__ == "__main__":
             proxy_finetune = cpu_clone_sd(msg['finetune_weight'])
 
             server.update_node_info(proxy_update, proxy_weights[node_id], clean_weight, node_id)
-            if is_final_round:
-                final_finetunes[node_id] = proxy_finetune
-                final_proxy_trains[node_id] = proxy_update
+            if node_id in eval_selected_id_set:
+                eval_finetunes[node_id] = proxy_finetune
+                eval_proxy_trains[node_id] = proxy_update
             del msg
 
         time.sleep(2.0)
 
-        if is_final_round:
+        if is_main_eval and is_final_round:
             time.sleep(1.0)
             test_count += evaluate_final(
                 roundIdx=roundIdx,
                 selected_ids=selected_ids,
                 proxy_weights=proxy_weights,
-                proxy_trains=final_proxy_trains,
-                proxy_finetunes=final_finetunes,
+                proxy_trains=eval_proxy_trains,
+                proxy_finetunes=eval_finetunes,
                 test_q=test_q
+            )
+        elif is_ablation_eval and tracking_selected_ids:
+            time.sleep(1.0)
+            test_count += evaluate_tracking(
+                roundIdx=roundIdx,
+                tracking_ids=tracking_selected_ids,
+                proxy_weights=proxy_weights,
+                proxy_trains=eval_proxy_trains,
+                proxy_finetunes=eval_finetunes,
+                test_q=test_q,
+                server_weight=clean_weight
             )
 
         server.avg_parameters(roundIdx)

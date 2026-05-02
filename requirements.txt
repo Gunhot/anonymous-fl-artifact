@@ -1,0 +1,12 @@
+torch
+torchvision
+numpy
+pandas
+Pillow
+matplotlib
+datasets
+transformers
+peft
+accelerate
+scikit-image
+future

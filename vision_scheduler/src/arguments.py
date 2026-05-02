@@ -20,7 +20,7 @@ def generate_log_name(args):
         f"p1{args.p1}p2{args.p2}OM{args.omega}SD{args.seed}"
         f"{'QF1' if args.qsn_fixed_mask else ''}"
         f"NU{args.noise_update}"
-        f"main"
+        f"{args.eval_mode}"
     )
     log_path = os.path.join(VISION_SCHEDULER_DIR, "save", args.dataset, log_name)
     return log_path
@@ -84,6 +84,9 @@ def parser():
 
     parser.add_argument('--log_name', type=str, default=None,
                         help='Optional override for log directory path')
+    parser.add_argument('--eval_mode', type=str, default='main',
+                        choices=['main', 'ablation'],
+                        help='main: evaluate only the final round; ablation: track clients 0, 1, and 2 during training')
     args = parser.parse_args()
 
     if args.log_name is None:
