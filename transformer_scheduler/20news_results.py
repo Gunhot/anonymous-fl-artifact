@@ -71,8 +71,6 @@ experiments = [
     ("FedAvg", fedavg_args),
     ("ρ=0.9", make_args(DP="ours", sigma=9000.0)),
 
-    ("FedAvg", fedavg_args),
-    ("ρ=0.8", make_args(DP="ours", sigma=8000.0)),
 ]
 
 titles = [title for title, _ in experiments]
