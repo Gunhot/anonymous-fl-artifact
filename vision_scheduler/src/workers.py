@@ -1,20 +1,22 @@
 import os
+import sys
 import torch
-from dataLoader.dataset import get_dataset
-from nn_models.resnet import ResNet20, ResNet18, ResNet50
-from nn_models.mobilenet import MobileNetV2
+
+ARTIFACT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if ARTIFACT_ROOT not in sys.path:
+    sys.path.insert(0, ARTIFACT_ROOT)
+
+from nn_models import MobileNetV2, RResNet50, ResNet50
 from torch.utils.data import DataLoader
 
 def build_model(args):
-    in_channels = 1 if args.dataset in ['mnist', 'femnist'] else 3
-    if args.model == 'ResNet18':
-        return ResNet18(num_classes=args.num_classes)
-    elif args.model == 'ResNet50':
-        return ResNet50(num_classes=args.num_classes)
+    if args.model == 'ResNet50':
+        return ResNet50(dataset=args.dataset)
+    elif args.model == 'RResNet50':
+        return RResNet50(dataset=args.dataset)
     elif args.model == 'MobileNetV2':
-        return MobileNetV2(num_classes=args.num_classes, in_channels=in_channels)
-    elif args.model == 'ResNet20':
-        return ResNet20(num_classes=args.num_classes)
+        return MobileNetV2(dataset=args.dataset)
+    raise ValueError(f"Unsupported model: {args.model}")
 
 
 def get_model_sd(model):
@@ -26,6 +28,8 @@ def set_model_sd(model, model_sd):
     return model
 
 def gpu_train_worker(trainQ, train_ack_q, device, args):
+    from dataLoader.dataset import get_dataset
+
     dataset, _ = get_dataset(args)
     train_model = build_model(args)
 
@@ -41,17 +45,15 @@ def gpu_train_worker(trainQ, train_ack_q, device, args):
             round = msg['round']
             local_epoch = msg.get('local_epoch')
             finetune = msg['finetune']
-            virtual_sd = msg['virtual_weight']
 
-            model_weight, finetune_weight, virtual_weight = processing_node.train(
+            model_weight, finetune_weight = processing_node.train(
                 device, msg['lr'], train_model, dataset, round,
-                local_epoch=local_epoch, finetune=finetune, virtual_sd=virtual_sd
+                local_epoch=local_epoch, finetune=finetune
             )
 
             result = {
                 'weight': model_weight,
                 'finetune_weight': finetune_weight,
-                'virtual_weight': virtual_weight,
                 'id': processing_node.nodeID
             }
 
@@ -59,7 +61,6 @@ def gpu_train_worker(trainQ, train_ack_q, device, args):
 
             del model_weight
             del finetune_weight
-            del virtual_weight
             del result
 
         del msg
@@ -96,6 +97,8 @@ def evaluate_classification(model, test_loader, args, device, roundIdx, type):
 
 
 def gpu_test_worker(testQ, ackQ, device, args, worker_type="server"):
+    from dataLoader.dataset import get_dataset
+
     _, test_dataset = get_dataset(args)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     local_model = build_model(args)

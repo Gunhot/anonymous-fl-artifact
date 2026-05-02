@@ -56,7 +56,7 @@ class Client:
         elif self.__args.opt == 'adam':
             return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-3)
 
-    def train(self, device, lr, model, train_dataset, round, local_epoch=None, finetune=False, virtual_sd=None):
+    def train(self, device, lr, model, train_dataset, round, local_epoch=None, finetune=False):
         base_seed = (self.__args.seed * 1000000) + (round * 1000) + self.nodeID
         main_seed = base_seed * 10 + 1
         finetune_seed = base_seed * 10 + 2
@@ -66,9 +66,6 @@ class Client:
         dataset = Subset(train_dataset, self.__node_indices)
         train_subset = dataset
 
-        # ---------------------------------------------------------------------
-        # 1. Finetuning (Independent Branch for tracking_id)
-        # ---------------------------------------------------------------------
         finetune_weight = None
         if finetune:
             f_model = build_model(self.__args)
@@ -91,9 +88,6 @@ class Client:
             finetune_weight = get_model_sd(f_model)
             del f_model
 
-        # ---------------------------------------------------------------------
-        # 2. Main Model Training (Standard)
-        # ---------------------------------------------------------------------
         model.to(device)
         main_loader = self._build_train_loader(train_subset, seed=main_seed)
         optimizer = self._get_optimizer(model, lr)
@@ -108,28 +102,4 @@ class Client:
         model.to('cpu')
         weight = get_model_sd(model)
 
-        # ---------------------------------------------------------------------
-        # 3. Virtual Model Training (Clean Execution Tracking)
-        # ---------------------------------------------------------------------
-        virtual_weight = None
-        if virtual_sd is not None:
-            v_model = build_model(self.__args)
-            set_model_sd(v_model, virtual_sd)
-            v_model.to(device)
-            v_loader = self._build_train_loader(train_subset, seed=main_seed)
-            v_optimizer = self._get_optimizer(v_model, lr)
-            self._reset_rng(main_seed)
-
-            self._run_training_epochs(
-                model=v_model,
-                loader=v_loader,
-                optimizer=v_optimizer,
-                epochs=local_epoch,
-                device=device
-            )
-
-            v_model.to('cpu')
-            virtual_weight = get_model_sd(v_model)
-            del v_model
-
-        return weight, finetune_weight, virtual_weight
+        return weight, finetune_weight
