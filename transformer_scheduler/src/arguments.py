@@ -17,7 +17,7 @@ def generate_log_name(args):
         f"MD{args.model}"#1
         f"DS{args.dataset}BS{args.batch_size}I{args.iid}BT{args.beta}"#5
         f"LE{args.local_epoch}LR{args.lr}DC{args.lr_decay}OPT{args.opt}"#3
-        f"ablation"
+        f"{args.eval_mode}"
     )
     log_path = os.path.join(TRANSFORMER_SCHEDULER_DIR, "save", args.dataset, log_name)
     return log_path
@@ -98,6 +98,9 @@ def parser():
 
     parser.add_argument('--log_name', type=str, default=None,
                         help='Optional override for log directory path')
+    parser.add_argument('--eval_mode', type=str, default='main',
+                        choices=['main', 'ablation'],
+                        help='main: evaluate only the final round; ablation: track clients 0, 1, and 2 during training')
 
     args = parser.parse_args()
     if args.log_name is None:

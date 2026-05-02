@@ -8,40 +8,45 @@ import numpy as np
 
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-VISION_SRC_DIR = os.path.join(SCRIPT_DIR, "src")
-if VISION_SRC_DIR not in sys.path:
-    sys.path.insert(0, VISION_SRC_DIR)
+TRANSFORMER_SRC_DIR = os.path.join(SCRIPT_DIR, "src")
+if TRANSFORMER_SRC_DIR not in sys.path:
+    sys.path.insert(0, TRANSFORMER_SRC_DIR)
 
 from arguments import generate_log_name
 
 base_dir = os.path.join(SCRIPT_DIR, "save")
 figure_dir = os.path.join(SCRIPT_DIR, "figures")
-figure_prefix = "tiny_imagenet"
+figure_prefix = "20news"
 
 
 DEFAULT_ARGS = {
     "n_procs": 2,
     "nodes": 100,
     "fraction": 0.1,
-    "round": 150,
-    "dataset": "tiny-imagenet",
-    "model": "ResNet50",
-    "batch_size": 64,
-    "iid": 2,
-    "beta": 0.1,
-    "local_epoch": 5,
-    "lr": 0.1,
-    "ft_lr": 0.01,
-    "opt": "sgd",
-    "lr_decay": 0.999,
+    "round": 100,
+    "ft_subset": 1.0,
     "DP": "none",
-    "sigma": 0,
+    "sigma": 0.0,
+    "noise_update": 0,
     "p1": 0.0,
     "p2": 0.0,
     "omega": 0,
-    "seed": 42,
-    "qsn_fixed_mask": False,
-    "noise_update": 0,
+    "lora_r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.1,
+    "use_pretrained": 1,
+    "seed": 2,
+    "max_len": 256,
+    "model": "distilbert",
+    "dataset": "20news",
+    "batch_size": 16,
+    "iid": 2,
+    "beta": 0.1,
+    "local_epoch": 1,
+    "lr": 0.0001,
+    "lr_decay": 0.999,
+    "opt": "adam",
+    "eval_mode": "ablation",
 }
 
 
@@ -55,9 +60,20 @@ def relative_log_name(args):
     return os.path.relpath(generate_log_name(SimpleNamespace(**args)), base_dir)
 
 
+fedavg_args = make_args(DP="none", sigma=0.0)
 experiments = [
-    ("FedAvg", make_args(DP="none", sigma=0)),
-    ("ρ=0.5", make_args(DP="ours", sigma=5000)),
+    ("FedAvg", fedavg_args),
+    ("ρ=1.3", make_args(n_procs=1, DP="gausg", sigma=13000.0)),
+    ("FedAvg", fedavg_args),
+    ("ρ=0.8", make_args(DP="ours", sigma=8000.0)),
+
+    ("FedAvg", fedavg_args),
+    ("ρ=0.7", make_args(DP="ours", sigma=7000.0)),
+    ("FedAvg", fedavg_args),
+    ("ρ=0.8", make_args(DP="ours", sigma=8000.0)),
+    ("FedAvg", fedavg_args),
+    ("ρ=0.9", make_args(DP="ours", sigma=9000.0)),
+
 ]
 
 titles = [title for title, _ in experiments]

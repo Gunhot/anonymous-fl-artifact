@@ -16,7 +16,7 @@ run_exp() {
     "$PYTHON" main.py $COMMON_ARGS "$@"
 }
 
-COMMON_ARGS="--dataset 20news --model distilbert --batch_size 16 --local_epoch 1 --opt adam --lr 0.0001 --lr_decay 0.999 --max_len 256 --use_pretrained 1 --seed 2 --noise_update 0"
+COMMON_ARGS="--eval_mode main --dataset 20news --model distilbert --batch_size 16 --local_epoch 1 --opt adam --lr 0.0001 --lr_decay 0.999 --max_len 256 --use_pretrained 1 --seed 2 --noise_update 0"
 
 run_exp "20news FedAvg Cross-device Non-IID" \
     --n_procs 2 --nodes 100 --fraction 0.1 --round 100 --iid 2 --beta 0.1 \

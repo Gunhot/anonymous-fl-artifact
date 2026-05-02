@@ -16,7 +16,7 @@ run_exp() {
     "$PYTHON" main.py $COMMON_ARGS "$@"
 }
 
-COMMON_ARGS="--n_procs 2 --dataset cifar100 --model MobileNetV2 --batch_size 64 --local_epoch 5 --lr 0.1 --ft_lr 0.01 --opt sgd --lr_decay 0.999 --seed 42 --noise_update 0"
+COMMON_ARGS="--eval_mode ablation --n_procs 2 --dataset cifar100 --model MobileNetV2 --batch_size 64 --local_epoch 5 --lr 0.1 --ft_lr 0.01 --opt sgd --lr_decay 0.999 --seed 42 --noise_update 0"
 
 run_exp "cifar100 FedAvg Cross-device Non-IID" \
     --nodes 100 --fraction 0.1 --round 100 --iid 2 --beta 0.1 \

@@ -16,7 +16,7 @@ run_exp() {
     "$PYTHON" main.py $COMMON_ARGS "$@"
 }
 
-COMMON_ARGS="--n_procs 2 --dataset tiny-imagenet --model ResNet50 --batch_size 64 --local_epoch 5 --lr 0.1 --ft_lr 0.01 --opt sgd --lr_decay 0.999 --seed 42 --noise_update 0"
+COMMON_ARGS="--eval_mode main --n_procs 2 --dataset tiny-imagenet --model ResNet50 --batch_size 64 --local_epoch 5 --lr 0.1 --ft_lr 0.01 --opt sgd --lr_decay 0.999 --seed 42 --noise_update 0"
 
 run_exp "tiny-imagenet FedAvg Cross-device Non-IID" \
     --nodes 100 --fraction 0.1 --round 150 --iid 2 --beta 0.1 \
