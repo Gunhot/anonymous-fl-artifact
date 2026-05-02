@@ -30,6 +30,7 @@ class Server:
         self.param_count = dict()
         self.args = args
         self.perturbation_direction = [dict() for _ in range(args.nodes)]
+        self.centered_noise_source_ids = {}
         self.original_model_sd = None
         self.global_init_sd = None
 
@@ -271,8 +272,10 @@ class Server:
     def center_noise(self, round_idx, target_client_ids):
         raw_noise = {}
         mean_noise = {}
+        source_ids = {}
         valid_perturbation_direction_ids = self._get_nonzero_ids(self.perturbation_direction)
         if len(valid_perturbation_direction_ids) == 0:
+            self.centered_noise_source_ids = {client_id: client_id for client_id in target_client_ids}
             return {
                 client_id: {
                     name: torch.zeros_like(tensor).float()
@@ -285,6 +288,7 @@ class Server:
             _, _, _, np_rng = self._build_get_model_rngs(round_idx, client_id)
 
             direction_id = int(np_rng.choice(valid_perturbation_direction_ids))
+            source_ids[client_id] = direction_id
 
             raw_noise[client_id] = {}
             for name, drift_tensor in self.perturbation_direction[direction_id].items():
@@ -303,6 +307,7 @@ class Server:
             for name, drift_tensor in raw_noise[client_id].items():
                 centered_noise[client_id][name] = drift_tensor - mean_noise[name]
 
+        self.centered_noise_source_ids = source_ids
         return centered_noise
 
     def get_model(self, round_idx=None, client_id=None, centered_noise=None):
@@ -352,7 +357,11 @@ class Server:
                     proxy_vector = centered_noise[client_id][name].to(original_param.device).float()
                     drift_norm = torch.norm(proxy_vector).item()
 
-                    scale_tensor = self.scale[client_id][name].to(original_param.device).float()
+                    scale_reference_id = client_id
+                    if not self._has_nonzero(self.scale, client_id):
+                        scale_reference_id = self.centered_noise_source_ids.get(client_id, client_id)
+
+                    scale_tensor = self.scale[scale_reference_id][name].to(original_param.device).float()
                     scale_norm = torch.norm(scale_tensor).item()
 
                     applied_scale = sigma / 10000.0 * scale_norm / (drift_norm + 1e-8)

@@ -1,14 +1,15 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-`src/` contains the training system. Use `src/main.py` as the primary entry point and `src/arguments.py` for all CLI/config flags and log-path generation. Federated orchestration lives in `src/node.py`, `src/server.py`, and `src/workers.py`. Dataset logic is under `src/dataLoader/`, and model backbones are provided by `../nn_models.py`. Utility scripts for repeatable experiments are in `src/scripts/`. Runtime artifacts are written to `save/` (gitignored).
+`src/` contains the training system. Use `src/main.py` as the primary entry point and `src/arguments.py` for all CLI/config flags and log-path generation. Federated orchestration lives in `src/node.py`, `src/server.py`, and `src/workers.py`. Dataset logic is under `src/dataLoader/`. Root-level `run_cifar100.sh` and `run_tiny_imagenet.sh` provide the repeatable artifact experiments. Runtime artifacts are written to `save/` (gitignored).
 
 ## Build, Test, and Development Commands
 There is no separate build step; run from `src/` so relative paths resolve correctly.
 
 - `cd src && python main.py --help`: list all experiment options.
 - `cd src && python main.py --round 1 --nodes 2 --n_procs 1 --model MobileNetV2 --dataset cifar100`: fast smoke run.
-- `cd src && bash scripts/r50.sh`: run curated ResNet50 experiment variants.
+- `sh run_cifar100.sh`: run the CIFAR-100 artifact experiments.
+- `sh run_tiny_imagenet.sh`: run the Tiny-ImageNet artifact experiments.
 
 ## Coding Style & Naming Conventions
 Use Python with 4-space indentation. Prefer `snake_case` for functions/variables/flags and `PascalCase` for classes/models (`Client`, `Server`, `ResNet50`). Keep new runtime flags centralized in `src/arguments.py`, and keep defaults reproducible (seed-aware changes should be explicit). Favor small, composable functions over long inlined blocks.
