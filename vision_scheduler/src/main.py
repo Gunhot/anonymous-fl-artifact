@@ -109,6 +109,41 @@ def evaluate_final(roundIdx, selected_ids, proxy_weights, proxy_trains, proxy_fi
     return test_count
 
 
+def evaluate_tracking(roundIdx, tracking_ids, proxy_weights, proxy_trains, proxy_finetunes, test_q):
+    test_count = 0
+
+    for node_id in tracking_ids:
+        if node_id not in proxy_weights:
+            continue
+
+        test_q.put({
+            'round': roundIdx,
+            'weight': proxy_weights[node_id],
+            'worker_type': f'proxy_{node_id}'
+        })
+        test_count += 1
+
+        train_sd = proxy_trains.get(node_id)
+        if train_sd is not None:
+            test_q.put({
+                'round': roundIdx,
+                'weight': train_sd,
+                'worker_type': f'proxy_train_{node_id}'
+            })
+            test_count += 1
+
+        finetune_sd = proxy_finetunes.get(node_id)
+        if finetune_sd is not None:
+            test_q.put({
+                'round': roundIdx,
+                'weight': finetune_sd,
+                'worker_type': f'proxy_finetune_{node_id}'
+            })
+            test_count += 1
+
+    return test_count
+
+
 if __name__ == "__main__":
     args = arguments.parser()
     set_global_seed(args.seed)
@@ -155,6 +190,7 @@ if __name__ == "__main__":
 
     lr = args.lr
     local_epoch = args.local_epoch
+    tracking_ids = [0, 1, 2]
     for roundIdx in range(1, args.round + 1):
         train_count = 0
         test_count = 0
@@ -167,6 +203,10 @@ if __name__ == "__main__":
         selected_ids = random.sample(nodeIDs, n_trainees)
         trainees = [nodes[i] for i in selected_ids]
         is_final_round = roundIdx == args.round
+        tracking_selected_ids = [
+            node_id for node_id in tracking_ids
+            if node_id in selected_ids
+        ]
 
         clean_weight = get_model_sd(server.model)
         if is_final_round:
@@ -197,7 +237,7 @@ if __name__ == "__main__":
                 'local_epoch': local_epoch,
                 'weight': proxy_weights[node.nodeID],
                 'round': roundIdx,
-                'finetune': is_final_round,
+                'finetune': is_final_round or node.nodeID in tracking_selected_ids,
             })
             train_count += 1
 
@@ -206,6 +246,8 @@ if __name__ == "__main__":
 
         final_finetunes = {}
         final_proxy_trains = {}
+        tracking_finetunes = {}
+        tracking_proxy_trains = {}
         for _ in range(train_count):
             msg = train_ack_q.get()
             node_id = msg['id']
@@ -213,12 +255,26 @@ if __name__ == "__main__":
             proxy_finetune = cpu_clone_sd(msg['finetune_weight'])
 
             server.update_node_info(proxy_update, proxy_weights[node_id], clean_weight, node_id)
+            if node_id in tracking_selected_ids:
+                tracking_finetunes[node_id] = proxy_finetune
+                tracking_proxy_trains[node_id] = proxy_update
             if is_final_round:
                 final_finetunes[node_id] = proxy_finetune
                 final_proxy_trains[node_id] = proxy_update
             del msg
 
         time.sleep(2.0)
+
+        if not is_final_round and tracking_selected_ids:
+            time.sleep(1.0)
+            test_count += evaluate_tracking(
+                roundIdx=roundIdx,
+                tracking_ids=tracking_selected_ids,
+                proxy_weights=proxy_weights,
+                proxy_trains=tracking_proxy_trains,
+                proxy_finetunes=tracking_finetunes,
+                test_q=test_q
+            )
 
         if is_final_round:
             time.sleep(1.0)
