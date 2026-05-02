@@ -1,25 +1,8 @@
 import argparse
 import os
-import subprocess
 
 
 TRANSFORMER_SCHEDULER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-ARTIFACT_DIR = os.path.abspath(os.path.join(TRANSFORMER_SCHEDULER_DIR, ".."))
-
-
-def current_branch_suffix():
-    try:
-        branch = subprocess.check_output(
-            ["git", "-C", ARTIFACT_DIR, "branch", "--show-current"],
-            stderr=subprocess.DEVNULL,
-            text=True,
-        ).strip()
-    except Exception:
-        branch = ""
-
-    if branch in {"main", "ablation"}:
-        return branch
-    return ""
 
 
 def generate_log_name(args):
@@ -34,7 +17,7 @@ def generate_log_name(args):
         f"MD{args.model}"#1
         f"DS{args.dataset}BS{args.batch_size}I{args.iid}BT{args.beta}"#5
         f"LE{args.local_epoch}LR{args.lr}DC{args.lr_decay}OPT{args.opt}"#3
-        f"{current_branch_suffix()}"
+        f"ablation"
     )
     log_path = os.path.join(TRANSFORMER_SCHEDULER_DIR, "save", args.dataset, log_name)
     return log_path
